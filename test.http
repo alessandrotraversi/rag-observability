@@ -38,6 +38,16 @@ Content-Type: application/json
   "question": "Como funciona o suporte no plano da empresa?"
 }
 
+### Chat: request scope (profile hr-handbook, API_SCOPE_FROM_HEADERS=true behind a trusted gateway)
+POST {{baseUrl}}/chat
+Content-Type: application/json
+X-RAG-Scope-Company: acme-labs
+
+{
+  "question": "How many vacation days do I get in Portugal?",
+  "debug": true
+}
+
 ### Chat: answer not in the knowledge base
 POST {{baseUrl}}/chat
 Content-Type: application/json

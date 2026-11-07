@@ -5,3 +5,5 @@ __pycache__/
 data/
 CLAUDE.local.md
 .playwright-cli/
+.pytest_cache/
+*.egg-info/

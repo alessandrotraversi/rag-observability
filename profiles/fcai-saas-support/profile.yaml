@@ -1,0 +1,101 @@
+# Domain profile: the original upstream example (FCAI, a fictional observability SaaS),
+# now expressed as configuration. Every value here used to be a constant in app/*.py.
+# Schema: docs/design/02-domain-profile.md
+
+name: fcai-saas-support
+description: Suporte e documentação comercial do FCAI Cloud (empresa fictícia).
+collection: fcai_knowledge_base
+
+assistant:
+  domain: FCAI
+  persona: a support assistant
+  language: Portuguese
+
+# Authorization, not search: always applied, never chosen by the model.
+# (upstream: SAFE_FILTERS in app/query_planner.py)
+scope:
+  enforced_filters:
+    tenant: fcai
+    product: fcai-cloud
+    status: published
+  observed_fields: [tenant, product]
+
+# Closed vocabularies the planner may filter by.
+# (upstream: DocType/Plan literals + the catalog in PLANNER_SYSTEM_PROMPT)
+facets:
+  - name: doc_types
+    field: doc_type
+    multiple: true
+    description: >-
+      EVERY document type that could hold the answer. The price of a plan is in
+      'policy' AND in 'plan'; SSO is in 'plan' AND in 'product'; the support e-mail is
+      in 'sla', 'company' AND 'plan'.
+    values:
+      sla: >-
+        support SLA — severities (P1/P2/P3), response times per plan, support channels
+        (support e-mail, ticket portal, emergency phone), escalation, maintenance
+        windows, availability targets, SLA credits.
+      policy: >-
+        billing (payment methods, invoices, overage, billing failures, suspension) and
+        commercial policy (prices, contract, trial, discounts, upgrade/downgrade,
+        renewal, cancellation, refunds).
+      product: >-
+        what the platform does — metrics, logs, traces, alerts, dashboards,
+        integrations, plan limits and ingestion quotas.
+      plan: >-
+        one document per plan (Starter, Pro, Enterprise). Careful: each of them ALSO
+        covers the plan's price, its support channels, its security (SSO, SCIM, RBAC)
+        and its limits.
+      company: >-
+        the company itself — legal data, offices, history, business hours, data
+        residency, and the contact e-mails of every department.
+  - name: plan
+    field: plan
+    multiple: false
+    wildcard: all   # documents with plan=all apply to every plan
+    description: >-
+      Fill it only when the question is about ONE plan. A comparison between plans, or
+      a question that names no plan, leaves it null.
+    values:
+      starter: Starter plan
+      pro: Pro plan
+      enterprise: Enterprise plan
+
+planner:
+  clarification_guidance: >-
+    Words that point to one specific plan without naming it ('o plano da empresa',
+    'o meu plano') are exactly the ambiguous case. A question that mentions no plan at
+    all is NOT ambiguous: it has one reading, whose answer just varies per plan.
+  examples:
+    - "'E se der problema grave no Enterprise?' → one reading only (a P1 incident): doc_types=['sla', 'plan'], plan='enterprise', needs_clarification=false."
+    - "'Como funciona o suporte no plano da empresa?' → 'plano da empresa' reads both as the Enterprise plan and as whichever plan the company signed: needs_clarification=true."
+    - "'O que acontece se eu ultrapassar a cota?' → no plan named, one reading, the answer covers every plan: doc_types=['product', 'policy', 'plan'], plan=null, needs_clarification=false."
+
+ingestion:
+  loader: markdown
+  source_dir: knowledge_base
+  glob: "*.md"
+  required_metadata: [title, tenant, product, plan, doc_type, version, status, visibility]
+  context_header:
+    - {label: Document title, field: title}
+    - {label: Document type, field: doc_type}
+    - {label: Product, field: product}
+    - {label: Plan, field: plan}
+    - {label: Version, field: version}
+    - {label: Section, field: section}
+  split_headers: ["#", "##", "###"]
+  chunk_size: 900
+  chunk_overlap: 150
+
+retrieval:
+  top_k: 8          # with k=5 the right chunk kept missing the cut by one or two ranks
+  rerank_top_n: 4
+  preview_chars: 300
+
+sources:
+  extra_fields: [version]
+
+messages:
+  no_answer: Não encontrei informação suficiente na base de conhecimento para responder com segurança.
+  clarification_fallback: Pode detalhar melhor a sua pergunta?
+  policy_blocked: Esta solicitação não pode ser processada porque ultrapassa uma política operacional da aplicação.
