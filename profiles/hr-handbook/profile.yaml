@@ -1,0 +1,66 @@
+# Domain profile: a second, unrelated domain to prove the core is domain-free.
+# An internal HR handbook, in English, for a multi-company group: the company comes
+# from the caller's identity (request scope), never from the question.
+
+name: hr-handbook
+description: Internal HR handbook of a fictional holding (Acme Group). Illustrative only.
+collection: hr_handbook
+
+assistant:
+  domain: the Acme Group HR handbook
+  persona: an HR policy assistant
+  language: English
+
+scope:
+  enforced_filters:
+    status: approved
+  # Set per request by a trusted caller (e.g. the employee's company from SSO).
+  # Run the chat with:  --scope company=acme-labs
+  request_fields: [company]
+  observed_fields: [company]
+
+facets:
+  - name: topics
+    field: topic
+    multiple: true
+    description: Every HR topic that could hold the answer.
+    values:
+      leave: vacation, sick leave, parental leave, public holidays
+      remote_work: remote and hybrid work rules, equipment, home-office allowance
+      expenses: travel, meals, reimbursement limits and deadlines
+  - name: country
+    field: country
+    wildcard: global
+    description: Fill only when the question is about one country's rules.
+    values:
+      br: Brazil
+      pt: Portugal
+
+planner:
+  guidance:
+    - "Never infer the country from the language of the question; fill it only when a country or city is named."
+  examples:
+    - "'How many vacation days do I get in Portugal?' → topics=['leave'], country='pt'."
+    - "'Can I expense a taxi?' → topics=['expenses'], country=null."
+
+ingestion:
+  required_metadata: [title, company, topic, country, status, updated]
+  context_header:
+    - {label: Policy, field: title}
+    - {label: Topic, field: topic}
+    - {label: Country, field: country}
+    - {label: Section, field: section}
+  chunk_size: 700
+  chunk_overlap: 100
+
+retrieval:
+  top_k: 6
+  rerank_top_n: 3
+
+sources:
+  extra_fields: [updated, country]
+
+messages:
+  no_answer: I could not find this in the HR handbook. Please contact your HR business partner.
+  clarification_fallback: Could you tell me a bit more about what you need?
+  policy_blocked: This request cannot be processed right now due to an operational policy.
